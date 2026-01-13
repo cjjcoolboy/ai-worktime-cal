@@ -67,7 +67,11 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       onRecognized(result);
       setSelectedFile(null);
     } catch (err: any) {
-      setError(err.message || '识别失败，请重试');
+      if (err.message.includes('API Key')) {
+        setError(err.message + ' 请在右上角配置。');
+      } else {
+        setError(err.message || '识别失败，请重试');
+      }
     } finally {
       setLoading(false);
     }

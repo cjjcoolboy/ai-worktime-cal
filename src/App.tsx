@@ -128,9 +128,64 @@ function App() {
             )}
           </div>
         </div>
-      </main>
-    </div>
-  );
-}
-
-export default App;
+            </main>
+      
+            {/* API Key 设置模态框 */}
+            {showApiKeyModal && (
+              <div className="modal-backdrop fade show"></div>
+            )}
+            <div className={`modal fade ${showApiKeyModal ? 'show d-block' : ''}`} tabIndex={-1}>
+              <div className="modal-dialog">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">配置 SiliconFlow API Key</h5>
+                    <button 
+                      type="button" 
+                      className="btn-close" 
+                      onClick={() => setShowApiKeyModal(false)}
+                    ></button>
+                  </div>
+                  <div className="modal-body">
+                    <p className="text-muted small">
+                      请前往 <a href="https://cloud.siliconflow.cn" target="_blank" rel="noreferrer">
+                        SiliconFlow Cloud
+                      </a> 获取 API Key
+                    </p>
+                    <p className="small text-muted">
+                      提示：也可以在项目根目录的 .env 文件中配置 VITE_SILICONFLOW_API_KEY
+                    </p>
+                    <div className="mb-3">
+                      <label className="form-label">API Key</label>
+                      <input
+                        type="password"
+                        className="form-control"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="sk-..."
+                      />
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      onClick={() => setShowApiKeyModal(false)}
+                    >
+                      取消
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-primary"
+                      onClick={handleSaveApiKey}
+                    >
+                      保存
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
+      export default App;

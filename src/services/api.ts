@@ -53,6 +53,17 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// 从环境变量或 localStorage 获取 API Key
+export const getApiKey = (): string => {
+  // 优先从环境变量读取
+  const envApiKey = import.meta.env.VITE_SILICONFLOW_API_KEY;
+  if (envApiKey) {
+    return envApiKey;
+  }
+  // 其次从 localStorage 读取
+  return localStorage.getItem('siliconflow_api_key') || '';
+};
+
 // 识别打卡时间
 export const recognizeClockTimes = async (
   imageFile: File
@@ -97,10 +108,10 @@ export const recognizeClockTimes = async (
     temperature: 0.1
   };
 
-  const apiKey = import.meta.env.VITE_SILICONFLOW_API_KEY;
+  const apiKey = getApiKey();
 
   if (!apiKey) {
-    throw new Error('请在 .env 文件中配置 VITE_SILICONFLOW_API_KEY');
+    throw new Error('请先配置 SiliconFlow API Key');
   }
 
   try {
