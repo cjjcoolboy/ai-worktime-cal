@@ -117,12 +117,8 @@ export const useWorkTime = () => {
     // 按日期升序排列
     newRecords.sort((a, b) => a.date.localeCompare(b.date));
 
-    // 删除已存在的日期记录，用新数据覆盖
-    setRecords(prev => {
-      const existingDates = new Set(newRecords.map(r => r.date));
-      const filtered = prev.filter(r => !existingDates.has(r.date));
-      return [...filtered, ...newRecords];
-    });
+    // 直接用新识别的数据完全覆盖旧记录
+    setRecords(newRecords);
 
     return newRecords;
   }, [config.lunchBreakDuration]);
