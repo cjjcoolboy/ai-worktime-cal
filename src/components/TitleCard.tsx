@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { WorkTimeRecord } from '../types';
-import { generateFunnyTitle, generateTitleImage } from '../services/api';
+import { generateFunnyTitle, generateTitleImage, TitleResult } from '../services/api';
 
 interface TitleCardProps {
   records: WorkTimeRecord[];
 }
 
 const TitleCard: React.FC<TitleCardProps> = ({ records }) => {
-  const [title, setTitle] = useState('');
+  const [titleResult, setTitleResult] = useState<TitleResult | null>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,12 +19,12 @@ const TitleCard: React.FC<TitleCardProps> = ({ records }) => {
       setLoading(true);
       setError('');
       try {
-        // 生成搞笑称号
-        const funnyTitle = await generateFunnyTitle(records);
-        setTitle(funnyTitle);
+        // 生成搞笑称号和鼓励/赞美语
+        const result = await generateFunnyTitle(records);
+        setTitleResult(result);
 
         // 生成图片
-        const image = await generateTitleImage(funnyTitle);
+        const image = await generateTitleImage(result.title);
         setImageUrl(image);
       } catch (err: any) {
         console.error('生成称号/图片失败:', err);
@@ -62,19 +62,24 @@ const TitleCard: React.FC<TitleCardProps> = ({ records }) => {
               重试
             </button>
           </div>
-        ) : (
+        ) : titleResult ? (
           <div>
             {imageUrl && (
               <img
                 src={imageUrl}
-                alt={title}
+                alt={titleResult.title}
                 className="img-fluid rounded mb-3"
                 style={{ maxWidth: '300px', maxHeight: '300px' }}
               />
             )}
-            <h3 className="text-warning mb-0">{title}</h3>
+            <h3 className="text-warning mb-2">{titleResult.title}</h3>
+            {titleResult.message && (
+              <p className="text-muted mb-0" style={{ fontSize: '0.95rem' }}>
+                {titleResult.message}
+              </p>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -287,33 +287,55 @@ const generateStatsText = (records: WorkTimeRecord[]): string => {
 
 export interface TitleResult {
   title: string;
-  imageUrl: string;
+  message: string;
 }
 
-// 生成搞笑称号
+// 生成搞笑称号和鼓励/赞美语
 export const generateFunnyTitle = async (
   records: WorkTimeRecord[]
-): Promise<string> => {
+): Promise<TitleResult> => {
   const statsText = generateStatsText(records);
   
-  const prompt = `根据以下出勤数据，为用户生成一个搞笑的称号（4-8个字）：
+  // 计算平均工时
+  const totalDays = records.length;
+  const totalHours = records.reduce((sum, r) => sum + r.workHours, 0);
+  const avgHours = totalDays > 0 ? totalHours / totalDays : 0;
+  const isHighPerformance = avgHours >= 9.5;
+
+  const prompt = `根据以下出勤数据，为用户生成一个称号和一段话：
 
 公司规定：
 - 上班时间：8:30 - 9:30（超过9:30算迟到）
 - 下班时间：18:00 - 19:00（早于18:00算早退）
 
 ${statsText}
+平均工时：${avgHours.toFixed(1)}小时
+
+请严格按照以下JSON格式返回：
+{
+  "title": "称号（4-8个字）",
+  "message": "一段话（30-50字）"
+}
 
 要求：
-1. 称号必须是4-8个汉字
-2. 要搞笑、幽默
-3. 要根据迟到次数、早退次数等实际出勤表现来起称号
-4. 如果经常迟到，可以叫"迟到专业户"、"踩点王"等
-5. 如果经常早退，可以叫"早退先锋"、"准时跑路"等
-6. 如果表现很好，可以叫"准时模范"、"全勤之星"等
-7. 只返回称号本身，不要任何其他文字`;
+1. 如果平均工时达到9.5以上（表现优秀）：
+   - 称号要搞笑且帅气
+   - 消息要夸用户是超级棒的牛马，语气要赞美、夸张、可爱，适当添加表情包
+
+2. 如果平均工时没有达到9.5（需要加油）：
+
+   - 称号要搞笑且拉垮
+
+   - 消息要鼓励打气，语气要可爱社畜，适当添加表情包
+
+
+
+注意：参考例子只是为了说明语气和格式，请生成全新的、独特的称号和话语！`;
+
+
 
   const requestBody = {
+
     model: 'deepseek-ai/DeepSeek-V2.5',
     messages: [
       {
@@ -321,7 +343,7 @@ ${statsText}
         content: prompt
       }
     ],
-    max_tokens: 50,
+    max_tokens: 150,
     temperature: 0.8
   };
 
@@ -340,17 +362,33 @@ ${statsText}
       timeout: 60000
     });
 
-    let title = response.data.choices[0]?.message?.content || '';
-    title = title.trim().replace(/["'"']/g, '');
+    let content = response.data.choices[0]?.message?.content || '';
     
-    if (!title) {
-      title = '摸鱼达人';
+    // 解析JSON响应
+    try {
+      // 清理markdown代码块
+      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const parsed = JSON.parse(content);
+      const title = (parsed.title || '摸鱼达人').trim().replace(/["'"']/g, '');
+      const message = (parsed.message || '').trim();
+      return { title, message };
+    } catch (e) {
+      // JSON解析失败，返回默认值
+      return {
+        title: isHighPerformance ? '超级牛马' : '摸鱼达人',
+        message: isHighPerformance 
+          ? '呜呜呜...你是真的牛马！这么高的工时，简直是公司顶梁柱！🐮🐴💪' 
+          : '嘿！工时还没达标哦～继续加油卷起来！💪📈冲冲冲！'
+      };
     }
-    
-    return title;
   } catch (error: any) {
     console.error('生成称号失败:', error);
-    return '摸鱼达人';
+    return {
+      title: isHighPerformance ? '超级牛马' : '摸鱼达人',
+      message: isHighPerformance 
+        ? '呜呜呜...你是真的牛马！这么高的工时，简直是公司顶梁柱！🐮🐴💪' 
+        : '嘿！工时还没达标哦～继续加油卷起来！💪📈冲冲冲！'
+    };
   }
 };
 
