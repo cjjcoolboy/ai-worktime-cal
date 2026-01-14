@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { RecognizedTime } from '../types';
+import { RecognizedTime, WorkTimeRecord } from '../types';
 
 const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 
@@ -99,7 +99,8 @@ ${text}`;
       }
     ],
     max_tokens: 1000,
-    temperature: 0.1
+    temperature: 0.1,
+    enable_thinking: false  // 关闭思考模式，加速响应
   };
 
   const apiKey = getApiKey();
@@ -249,6 +250,157 @@ export const calculateWorkHours = (
   const workHours = workMinutes / 60;
 
   return Math.round(workHours * 100) / 100;
+};
+
+// 根据出勤记录生成统计信息文本
+const generateStatsText = (records: WorkTimeRecord[]): string => {
+  const totalDays = records.length;
+  const totalHours = records.reduce((sum, r) => sum + r.workHours, 0);
+  const avgHours = totalDays > 0 ? totalHours / totalDays : 0;
+
+  // 公司规定上班时间：8:30 - 9:30（超过9:30算迟到）
+  const isLate = (time: string): boolean => {
+    const [hour, min] = time.split(':').map(Number);
+    return hour > 9 || (hour === 9 && min > 30);
+  };
+
+  // 公司规定下班时间：18:00 - 19:00（早于18:00算早退）
+  const isEarlyDeparture = (time: string): boolean => {
+    const [hour, min] = time.split(':').map(Number);
+    return hour < 18;
+  };
+
+  // 统计出勤模式
+  const earlyArrivals = records.filter(r => {
+    const hour = parseInt(r.checkIn.split(':')[0]);
+    return hour < 9;
+  }).length;
+
+  const lateArrivals = records.filter(r => isLate(r.checkIn)).length;
+  const earlyDepartures = records.filter(r => isEarlyDeparture(r.checkOut)).length;
+  const onTimeDepartures = records.filter(r => !isEarlyDeparture(r.checkOut)).length;
+
+  const hardWorkers = records.filter(r => r.workHours >= 10).length;
+
+  return `出勤天数：${totalDays}天，总工时：${totalHours.toFixed(1)}小时，平均每天：${avgHours.toFixed(1)}小时，早到${earlyArrivals}次，迟到${lateArrivals}次，早退${earlyDepartures}次，按时下班${onTimeDepartures}次`;
+};
+
+export interface TitleResult {
+  title: string;
+  imageUrl: string;
+}
+
+// 生成搞笑称号
+export const generateFunnyTitle = async (
+  records: WorkTimeRecord[]
+): Promise<string> => {
+  const statsText = generateStatsText(records);
+  
+  const prompt = `根据以下出勤数据，为用户生成一个搞笑的称号（4-8个字）：
+
+公司规定：
+- 上班时间：8:30 - 9:30（超过9:30算迟到）
+- 下班时间：18:00 - 19:00（早于18:00算早退）
+
+${statsText}
+
+要求：
+1. 称号必须是4-8个汉字
+2. 要搞笑、幽默
+3. 要根据迟到次数、早退次数等实际出勤表现来起称号
+4. 如果经常迟到，可以叫"迟到专业户"、"踩点王"等
+5. 如果经常早退，可以叫"早退先锋"、"准时跑路"等
+6. 如果表现很好，可以叫"准时模范"、"全勤之星"等
+7. 只返回称号本身，不要任何其他文字`;
+
+  const requestBody = {
+    model: 'deepseek-ai/DeepSeek-V2.5',
+    messages: [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    max_tokens: 50,
+    temperature: 0.8
+  };
+
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    throw new Error('请先配置 SiliconFlow API Key');
+  }
+
+  try {
+    const response = await axios.post<SiliconFlowResponse>(SILICONFLOW_API_URL, requestBody, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+
+    let title = response.data.choices[0]?.message?.content || '';
+    title = title.trim().replace(/["'"']/g, '');
+    
+    if (!title) {
+      title = '摸鱼达人';
+    }
+    
+    return title;
+  } catch (error: any) {
+    console.error('生成称号失败:', error);
+    return '摸鱼达人';
+  }
+};
+
+// 生成称号相关图片
+export const generateTitleImage = async (
+  title: string
+): Promise<string> => {
+  const prompt = `A fun, humorous illustration for the title "${title}", cartoon style, colorful, energetic, suitable for work attendance badge`;
+
+  // 使用SiliconFlow支持的图像生成模型
+  const requestBody = {
+    model: 'Kwai-Kolors/Kolors',
+    prompt: prompt,
+    negative_prompt: 'ugly, blurry, low quality, distorted',
+    width: 1024,
+    height: 1024,
+    steps: 30,
+    guidance_scale: 7.5
+  };
+
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    throw new Error('请先配置 SiliconFlow API Key');
+  }
+
+  try {
+    // Kwai-Kolors模型使用 images/generations API
+    const response = await axios.post(
+      'https://api.siliconflow.cn/v1/images/generations',
+      requestBody,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 180000
+      }
+    );
+
+    if (response.data?.data && response.data.data.length > 0) {
+      return response.data.data[0].url || '';
+    }
+    
+    throw new Error('无法生成图片');
+  } catch (error: any) {
+    console.error('生成图片失败:', error);
+    // 如果失败，返回空字符串，让前端显示默认图片
+    return '';
+  }
 };
 
 // 格式化时间为 HH:mm

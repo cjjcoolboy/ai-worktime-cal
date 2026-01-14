@@ -67,6 +67,15 @@ const WorkTimeForm: React.FC<WorkTimeFormProps> = ({
           </div>
         </div>
 
+        {/* 公司规定上下班时间 */}
+        <div className="alert alert-info py-2 mb-3">
+          <small>
+            <strong>🏢 公司规定时间</strong><br />
+            上班：周一~周五 8:30 - 9:30<br />
+            下班：周一~周五 18:00 - 19:00
+          </small>
+        </div>
+
         {/* 手动添加按钮 */}
         <button
           className="btn btn-outline-primary w-100"

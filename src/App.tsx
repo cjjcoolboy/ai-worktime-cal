@@ -4,6 +4,7 @@ import WorkTimeForm from './components/WorkTimeForm';
 import ImageUploader from './components/ImageUploader';
 import WorkTimeList from './components/WorkTimeList';
 import ChartPanel from './components/ChartPanel';
+import TitleCard from './components/TitleCard';
 import { useWorkTime } from './hooks/useWorkTime';
 import { RecognizedTime } from './types';
 
@@ -78,10 +79,13 @@ function App() {
             />
           </div>
 
-          {/* 右侧：图表和列表 */}
+          {/* 右侧：图表、称号和列表 */}
           <div className="col-lg-8">
             {records.length > 0 && (
-              <ChartPanel records={records} />
+              <>
+                <TitleCard records={records} />
+                <ChartPanel records={records} />
+              </>
             )}
 
             <WorkTimeList
@@ -90,83 +94,84 @@ function App() {
               onUpdate={updateRecord}
             />
           </div>
-                </div>
-              </main>
+        </div>
+      </main>
         
-              {/* 页脚 */}
-              <footer className="app-footer">
-                <div className="container">
-                  <div className="footer-content">
-                    <div className="footer-info">
-                      <span className="footer-item">
-                        <span className="footer-icon">👨‍💻</span>
-                        制作人：iflow
-                      </span>
-                      <span className="footer-divider">|</span>
-                      <span className="footer-item">
-                        <span className="footer-icon">🤖</span>
-                        模型：minimax-m2.1
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </footer>
-        
-              {/* API Key 设置模态框 */}            {showApiKeyModal && (
-              <div className="modal-backdrop fade show"></div>
-            )}
-            <div className={`modal fade ${showApiKeyModal ? 'show d-block' : ''}`} tabIndex={-1}>
-              <div className="modal-dialog">
-                <div className="modal-content">
-                  <div className="modal-header">
-                    <h5 className="modal-title">配置 SiliconFlow API Key</h5>
-                    <button 
-                      type="button" 
-                      className="btn-close" 
-                      onClick={() => setShowApiKeyModal(false)}
-                    ></button>
-                  </div>
-                  <div className="modal-body">
-                    <p className="text-muted small">
-                      请前往 <a href="https://cloud.siliconflow.cn" target="_blank" rel="noreferrer">
-                        SiliconFlow Cloud
-                      </a> 获取 API Key
-                    </p>
-                    <p className="small text-muted">
-                      提示：也可以在项目根目录的 .env 文件中配置 VITE_SILICONFLOW_API_KEY
-                    </p>
-                    <div className="mb-3">
-                      <label className="form-label">API Key</label>
-                      <input
-                        type="password"
-                        className="form-control"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="sk-..."
-                      />
-                    </div>
-                  </div>
-                  <div className="modal-footer">
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary" 
-                      onClick={() => setShowApiKeyModal(false)}
-                    >
-                      取消
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn btn-primary"
-                      onClick={handleSaveApiKey}
-                    >
-                      保存
-                    </button>
-                  </div>
-                </div>
-              </div>
+      {/* 页脚 */}
+      <footer className="app-footer">
+        <div className="container">
+          <div className="footer-content">
+            <div className="footer-info">
+              <span className="footer-item">
+                <span className="footer-icon">👨‍💻</span>
+                制作人：iflow
+              </span>
+              <span className="footer-divider">|</span>
+              <span className="footer-item">
+                <span className="footer-icon">🤖</span>
+                模型：minimax-m2.1
+              </span>
             </div>
           </div>
-        );
-      }
+        </div>
+      </footer>
+        
+      {/* API Key 设置模态框 */}
+      {showApiKeyModal && (
+        <div className="modal-backdrop fade show"></div>
+      )}
+      <div className={`modal fade ${showApiKeyModal ? 'show d-block' : ''}`} tabIndex={-1}>
+        <div className="modal-dialog">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">配置 SiliconFlow API Key</h5>
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={() => setShowApiKeyModal(false)}
+              ></button>
+            </div>
+            <div className="modal-body">
+              <p className="text-muted small">
+                请前往 <a href="https://cloud.siliconflow.cn" target="_blank" rel="noreferrer">
+                  SiliconFlow Cloud
+                </a> 获取 API Key
+              </p>
+              <p className="small text-muted">
+                提示：也可以在项目根目录的 .env 文件中配置 VITE_SILICONFLOW_API_KEY
+              </p>
+              <div className="mb-3">
+                <label className="form-label">API Key</label>
+                <input
+                  type="password"
+                  className="form-control"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-..."
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowApiKeyModal(false)}
+              >
+                取消
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                onClick={handleSaveApiKey}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
       
-      export default App;
+export default App;

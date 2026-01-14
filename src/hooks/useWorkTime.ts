@@ -11,6 +11,20 @@ const isBefore7AM = (time: string): boolean => {
   return hour < 7;
 };
 
+// 公司规定上班时间：8:30 - 9:30（超过9:30算迟到）
+const isLate = (time: string): boolean => {
+  const [hour, min] = time.split(':').map(Number);
+  // 9:30 之后算迟到
+  return hour > 9 || (hour === 9 && min > 30);
+};
+
+// 公司规定下班时间：18:00 - 19:00（早于18:00算早退）
+const isEarlyDeparture = (time: string): boolean => {
+  const [hour, min] = time.split(':').map(Number);
+  // 18:00 之前算早退
+  return hour < 18;
+};
+
 export const useWorkTime = () => {
   const [records, setRecords] = useState<WorkTimeRecord[]>([]);
   const [config, setConfig] = useState<UserConfig>({
@@ -155,7 +169,9 @@ export const useWorkTime = () => {
       ? Math.round((records.reduce((sum, r) => sum + r.workHours, 0) / records.length) * 100) / 100 
       : 0,
     maxHours: records.length > 0 ? Math.max(...records.map(r => r.workHours)) : 0,
-    minHours: records.length > 0 ? Math.min(...records.map(r => r.workHours)) : 0
+    minHours: records.length > 0 ? Math.min(...records.map(r => r.workHours)) : 0,
+    lateCount: records.filter(r => isLate(r.checkIn)).length,
+    earlyDepartureCount: records.filter(r => isEarlyDeparture(r.checkOut)).length
   };
 
   return {
