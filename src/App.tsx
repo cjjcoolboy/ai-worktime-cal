@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import Header from './components/Header';
-import WorkTimeForm from './components/WorkTimeForm';
-import ImageUploader from './components/ImageUploader';
-import WorkTimeList from './components/WorkTimeList';
-import ChartPanel from './components/ChartPanel';
-import TitleCard from './components/TitleCard';
-import { useWorkTime } from './hooks/useWorkTime';
-import { RecognizedTime } from './types';
+import { useState, useEffect } from "react";
+import Header from "./components/Header";
+import WorkTimeForm from "./components/WorkTimeForm";
+import ImageUploader from "./components/ImageUploader";
+import WorkTimeList from "./components/WorkTimeList";
+import ChartPanel from "./components/ChartPanel";
+import TitleCard from "./components/TitleCard";
+import { useWorkTime } from "./hooks/useWorkTime";
+import { RecognizedTime } from "./types";
 
 function App() {
   const {
@@ -20,12 +20,12 @@ function App() {
     updateRecord,
     clearRecords,
     updateConfig,
-    statistics
+    statistics,
   } = useWorkTime();
 
   // 修改页面标题
   useEffect(() => {
-    document.title = '出勤计算器';
+    document.title = "卷了么";
   }, []);
 
   // 监听手动录入事件
@@ -35,11 +35,11 @@ function App() {
       addRecord(detail.date, detail.checkIn, detail.checkOut);
     };
 
-    window.addEventListener('addManualRecord', handleAddRecord);
-    return () => window.removeEventListener('addManualRecord', handleAddRecord);
+    window.addEventListener("addManualRecord", handleAddRecord);
+    return () => window.removeEventListener("addManualRecord", handleAddRecord);
   }, [addRecord]);
 
-  const [apiKey, setApiKey] = useState(config.apiKey || '');
+  const [apiKey, setApiKey] = useState(config.apiKey || "");
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   // 识别完成后直接添加到记录中
@@ -54,7 +54,7 @@ function App() {
 
   return (
     <div className="app">
-      <Header 
+      <Header
         onOpenApiKey={() => setShowApiKeyModal(true)}
         apiKeyConfigured={!!config.apiKey}
       />
@@ -63,9 +63,11 @@ function App() {
         <div className="row">
           {/* 左侧：配置和上传 */}
           <div className="col-lg-4 mb-4">
-            <WorkTimeForm 
+            <WorkTimeForm
               lunchBreak={config.lunchBreakDuration}
-              onUpdateLunchBreak={(duration) => updateConfig({ lunchBreakDuration: duration })}
+              onUpdateLunchBreak={(duration) =>
+                updateConfig({ lunchBreakDuration: duration })
+              }
               onClearAll={clearRecords}
               totalDays={statistics.totalDays}
               totalHours={statistics.totalHours}
@@ -96,7 +98,7 @@ function App() {
           </div>
         </div>
       </main>
-        
+
       {/* 页脚 */}
       <footer className="app-footer">
         <div className="container">
@@ -115,30 +117,38 @@ function App() {
           </div>
         </div>
       </footer>
-        
+
       {/* API Key 设置模态框 */}
-      {showApiKeyModal && (
-        <div className="modal-backdrop fade show"></div>
-      )}
-      <div className={`modal fade ${showApiKeyModal ? 'show d-block' : ''}`} tabIndex={-1}>
+      {showApiKeyModal && <div className="modal-backdrop fade show"></div>}
+      <div
+        className={`modal fade ${showApiKeyModal ? "show d-block" : ""}`}
+        tabIndex={-1}
+      >
         <div className="modal-dialog">
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title">配置 SiliconFlow API Key</h5>
-              <button 
-                type="button" 
-                className="btn-close" 
+              <button
+                type="button"
+                className="btn-close"
                 onClick={() => setShowApiKeyModal(false)}
               ></button>
             </div>
             <div className="modal-body">
               <p className="text-muted small">
-                请前往 <a href="https://cloud.siliconflow.cn" target="_blank" rel="noreferrer">
+                请前往{" "}
+                <a
+                  href="https://cloud.siliconflow.cn"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   SiliconFlow Cloud
-                </a> 获取 API Key
+                </a>{" "}
+                获取 API Key
               </p>
               <p className="small text-muted">
-                提示：也可以在项目根目录的 .env 文件中配置 VITE_SILICONFLOW_API_KEY
+                提示：也可以在项目根目录的 .env 文件中配置
+                VITE_SILICONFLOW_API_KEY
               </p>
               <div className="mb-3">
                 <label className="form-label">API Key</label>
@@ -152,15 +162,15 @@ function App() {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => setShowApiKeyModal(false)}
               >
                 取消
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn btn-primary"
                 onClick={handleSaveApiKey}
               >
@@ -173,5 +183,5 @@ function App() {
     </div>
   );
 }
-      
+
 export default App;
