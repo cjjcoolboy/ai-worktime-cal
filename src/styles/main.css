@@ -238,3 +238,70 @@ body {
 .list-group-item:last-child {
   border-bottom: none;
 }
+
+/* 页脚样式 */
+.app-footer {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 2rem;
+  padding: 1.5rem 0;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.footer-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6c757d;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.footer-item:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.footer-icon {
+  font-size: 1rem;
+}
+
+.footer-divider {
+  color: #dee2e6;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 576px) {
+  .footer-info {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .footer-divider {
+    display: none;
+  }
+  
+  .footer-item {
+    width: 100%;
+    justify-content: center;
+  }
+}

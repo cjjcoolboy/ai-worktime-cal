@@ -35,9 +35,9 @@ const WorkTimeList: React.FC<WorkTimeListProps> = ({
     setEditForm({});
   };
 
-  // 按日期降序排序
+  // 按日期升序排序（日期早的排在前面）
   const sortedRecords = [...records].sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+    new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
   if (records.length === 0) {
@@ -55,7 +55,7 @@ const WorkTimeList: React.FC<WorkTimeListProps> = ({
   return (
     <div className="card mb-4">
       <div className="card-header d-flex justify-content-between align-items-center">
-        <span>📋 工时记录</span>
+        <span>📋 出勤记录</span>
         <small className="text-muted">共 {records.length} 条</small>
       </div>
       <div className="card-body p-0">

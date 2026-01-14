@@ -5,6 +5,12 @@ import { calculateWorkHours, generateId } from '../services/api';
 const RECORDS_KEY = 'worktime_records';
 const CONFIG_KEY = 'worktime_config';
 
+// 判断时间是否在早上7点之前（用于过滤无效的上班打卡）
+const isBefore7AM = (time: string): boolean => {
+  const [hour] = time.split(':').map(Number);
+  return hour < 7;
+};
+
 export const useWorkTime = () => {
   const [records, setRecords] = useState<WorkTimeRecord[]>([]);
   const [config, setConfig] = useState<UserConfig>({
@@ -62,7 +68,7 @@ export const useWorkTime = () => {
     return newRecord;
   }, [config.lunchBreakDuration]);
 
-  // 从识别结果批量添加记录
+  // 从识别结果批量添加记录（日期重复时用最新数据覆盖）
   const addRecordsFromRecognition = useCallback((
     recognizedData: Array<{ date: string; times: string[] }>
   ) => {
@@ -71,10 +77,17 @@ export const useWorkTime = () => {
     recognizedData.forEach(item => {
       if (item.times.length < 2) return;
 
-      // 取最早时间为上班时间，最晚时间为下班时间
+      // 排序时间
       const sortedTimes = [...item.times].sort();
-      const checkIn = sortedTimes[0];
-      const checkOut = sortedTimes[sortedTimes.length - 1];
+
+      // 过滤掉7点之前的上班打卡时间
+      const validTimes = sortedTimes.filter(time => !isBefore7AM(time));
+
+      // 如果有效时间少于2个，跳过这条记录
+      if (validTimes.length < 2) return;
+
+      const checkIn = validTimes[0];  // 取第一个有效时间作为上班时间
+      const checkOut = validTimes[validTimes.length - 1];  // 取最后一个时间作为下班时间
       const workHours = calculateWorkHours(checkIn, checkOut, config.lunchBreakDuration);
 
       newRecords.push({
@@ -87,7 +100,16 @@ export const useWorkTime = () => {
       });
     });
 
-    setRecords(prev => [...prev, ...newRecords]);
+    // 按日期升序排列
+    newRecords.sort((a, b) => a.date.localeCompare(b.date));
+
+    // 删除已存在的日期记录，用新数据覆盖
+    setRecords(prev => {
+      const existingDates = new Set(newRecords.map(r => r.date));
+      const filtered = prev.filter(r => !existingDates.has(r.date));
+      return [...filtered, ...newRecords];
+    });
+
     return newRecords;
   }, [config.lunchBreakDuration]);
 

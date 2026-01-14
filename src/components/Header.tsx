@@ -8,9 +8,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenApiKey, apiKeyConfigured }) => {
     <header className="header">
       <div className="container">
         <div className="d-flex justify-content-between align-items-center">
-          <h1 className="h4 mb-0">
-            📊 工时计算器
-          </h1>
+                  <h1 className="h4 mb-0">📊 出勤计算器</h1>
           <button 
             className={`btn btn-sm ${apiKeyConfigured ? 'btn-success' : 'btn-outline-warning'}`}
             onClick={onOpenApiKey}

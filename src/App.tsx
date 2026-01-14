@@ -22,6 +22,11 @@ function App() {
     statistics
   } = useWorkTime();
 
+  // 修改页面标题
+  useEffect(() => {
+    document.title = '出勤计算器';
+  }, []);
+
   // 监听手动录入事件
   useEffect(() => {
     const handleAddRecord = (e: Event) => {
@@ -34,18 +39,11 @@ function App() {
   }, [addRecord]);
 
   const [apiKey, setApiKey] = useState(config.apiKey || '');
-  const [recognizedData, setRecognizedData] = useState<RecognizedTime[]>([]);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
+  // 识别完成后直接添加到记录中
   const handleImageRecognized = (data: RecognizedTime[]) => {
-    setRecognizedData(data);
-  };
-
-  const handleConfirmRecognition = () => {
-    if (recognizedData.length > 0) {
-      addRecordsFromRecognition(recognizedData);
-      setRecognizedData([]);
-    }
+    addRecordsFromRecognition(data);
   };
 
   const handleSaveApiKey = () => {
@@ -78,60 +76,43 @@ function App() {
               setLoading={setLoading}
               onRecognized={handleImageRecognized}
             />
-
-            {recognizedData.length > 0 && (
-              <div className="card mt-3">
-                <div className="card-header bg-info text-white">
-                  识别结果确认
-                </div>
-                <div className="card-body">
-                  <ul className="list-group list-group-flush">
-                    {recognizedData.map((item, index) => (
-                      <li key={index} className="list-group-item">
-                        <strong>{item.date}</strong>
-                        <br />
-                        <small className="text-muted">
-                          {item.times.join(' → ')}
-                        </small>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-3 d-flex gap-2">
-                    <button 
-                      className="btn btn-primary flex-grow-1"
-                      onClick={handleConfirmRecognition}
-                    >
-                      确认添加
-                    </button>
-                    <button 
-                      className="btn btn-secondary"
-                      onClick={() => setRecognizedData([])}
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* 右侧：列表和图表 */}
+          {/* 右侧：图表和列表 */}
           <div className="col-lg-8">
+            {records.length > 0 && (
+              <ChartPanel records={records} />
+            )}
+
             <WorkTimeList
               records={records}
               onDelete={deleteRecord}
               onUpdate={updateRecord}
             />
-
-            {records.length > 0 && (
-              <ChartPanel records={records} />
-            )}
           </div>
-        </div>
-            </main>
-      
-            {/* API Key 设置模态框 */}
-            {showApiKeyModal && (
+                </div>
+              </main>
+        
+              {/* 页脚 */}
+              <footer className="app-footer">
+                <div className="container">
+                  <div className="footer-content">
+                    <div className="footer-info">
+                      <span className="footer-item">
+                        <span className="footer-icon">👨‍💻</span>
+                        制作人：iflow
+                      </span>
+                      <span className="footer-divider">|</span>
+                      <span className="footer-item">
+                        <span className="footer-icon">🤖</span>
+                        模型：minimax-m2.1
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </footer>
+        
+              {/* API Key 设置模态框 */}            {showApiKeyModal && (
               <div className="modal-backdrop fade show"></div>
             )}
             <div className={`modal fade ${showApiKeyModal ? 'show d-block' : ''}`} tabIndex={-1}>

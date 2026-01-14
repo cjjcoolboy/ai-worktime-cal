@@ -5,14 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    open: true,
-    proxy: {
-      '/api/siliconflow': {
-        target: 'https://api.siliconflow.cn',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api\/siliconflow/, '/v1/chat/completions')
-      }
-    }
+    host: '0.0.0.0',
+    open: false
   }
 })
