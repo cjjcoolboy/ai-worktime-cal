@@ -69,7 +69,10 @@ export const recognizeClockTimesFromText = async (
   text: string
 ): Promise<RecognizedTime[]> => {
   const prompt = `请从以下文本中提取打卡记录，识别出每天的日期和打卡时间。
-请严格按照以下JSON格式返回，不要添加任何其他文字：
+
+重要：请直接返回JSON结果，不要进行任何思考或推理分析！
+
+请严格按照以下JSON格式返回：
 
 {
   "records": [
@@ -81,11 +84,11 @@ export const recognizeClockTimesFromText = async (
 }
 
 注意事项：
-1. 如果文本中只有时间没有日期，请根据上下文推断日期
+1. 如果文本中只有时间没有日期，请根据上下文直接推断日期，不要犹豫
 2. 如果一天有多个打卡时间，请按时间顺序排列
 3. 如果无法识别日期，请标注"未知日期"
 4. 时间格式为 HH:mm:ss，保留秒
-5. 只返回JSON，不要返回其他内容
+5. 只返回JSON字符串，不要返回任何其他文字或解释
 
 文本内容：
 ${text}`;
@@ -234,7 +237,52 @@ export const recognizeClockTimes = async (
   }
 };
 
-// 计算工时
+// 计算工时（使用时间范围计算午休时长）
+export const calculateWorkHoursWithTimeRange = (
+  checkIn: string,
+  checkOut: string,
+  lunchBreakStart: string,
+  lunchBreakEnd: string
+): number => {
+  const [inHour, inMin] = checkIn.split(':').map(Number);
+  const [outHour, outMin] = checkOut.split(':').map(Number);
+
+  const inMinutes = inHour * 60 + inMin;
+  const outMinutes = outHour * 60 + outMin;
+
+  // 计算午休时间
+  const [breakStartH, breakStartM] = lunchBreakStart.split(':').map(Number);
+  const [breakEndH, breakEndM] = lunchBreakEnd.split(':').map(Number);
+  const breakStartMinutes = breakStartH * 60 + breakStartM;
+  const breakEndMinutes = breakEndH * 60 + breakEndM;
+
+  // 如果只有上班打卡时间或者只有下班打卡时间，算缺勤
+  if (!checkIn || !checkOut) {
+    return 0;
+  }
+
+  // 如果上班打卡时间在午休结束时间之后
+  if (inMinutes >= breakEndMinutes) {
+    const workMinutes = outMinutes - inMinutes;
+    return Math.round(workMinutes / 60 * 100) / 100;
+  }
+
+  // 如果上班打卡时间在午休时间期间
+  if (inMinutes >= breakStartMinutes && inMinutes < breakEndMinutes) {
+    const workMinutes = outMinutes - breakEndMinutes;
+    return Math.round(workMinutes / 60 * 100) / 100;
+  }
+
+  // 正常情况：工时 = (午休开始时间 - 上班打卡时间) + (下班时间 - 午休结束时间)
+  const morningWorkMinutes = breakStartMinutes - inMinutes; // 上午工作时长
+  const afternoonWorkMinutes = outMinutes - breakEndMinutes; // 下午工作时长
+  const workMinutes = morningWorkMinutes + afternoonWorkMinutes;
+  const workHours = workMinutes / 60;
+
+  return Math.round(workHours * 100) / 100;
+};
+
+// 计算工时（兼容旧版本，使用小时数）
 export const calculateWorkHours = (
   checkIn: string,
   checkOut: string,
@@ -266,7 +314,7 @@ const generateStatsText = (records: WorkTimeRecord[]): string => {
 
   // 公司规定下班时间：18:00 - 19:00（早于18:00算早退）
   const isEarlyDeparture = (time: string): boolean => {
-    const [hour, min] = time.split(':').map(Number);
+    const [hour] = time.split(':').map(Number);
     return hour < 18;
   };
 
@@ -280,8 +328,6 @@ const generateStatsText = (records: WorkTimeRecord[]): string => {
   const earlyDepartures = records.filter(r => isEarlyDeparture(r.checkOut)).length;
   const onTimeDepartures = records.filter(r => !isEarlyDeparture(r.checkOut)).length;
 
-  const hardWorkers = records.filter(r => r.workHours >= 10).length;
-
   return `出勤天数：${totalDays}天，总工时：${totalHours.toFixed(1)}小时，平均每天：${avgHours.toFixed(1)}小时，早到${earlyArrivals}次，迟到${lateArrivals}次，早退${earlyDepartures}次，按时下班${onTimeDepartures}次`;
 };
 
@@ -290,39 +336,341 @@ export interface TitleResult {
   message: string;
 }
 
-// 生成搞笑称号和鼓励/赞美语
-export const generateFunnyTitle = async (
-  records: WorkTimeRecord[]
-): Promise<TitleResult> => {
-  const statsText = generateStatsText(records);
-  
-  // 计算平均工时
-  const totalDays = records.length;
-  const totalHours = records.reduce((sum, r) => sum + r.workHours, 0);
-  const avgHours = totalDays > 0 ? totalHours / totalDays : 0;
-  const isHighPerformance = avgHours >= 9.5;
+// 打卡时间建议结果
+export interface ClockTimeSuggestion {
+  checkIn: string;     // 上班时间 HH:mm
+  checkOut: string;    // 下班时间 HH:mm
+  workHours: number;   // 工时
+}
 
-  const prompt = `根据以下出勤数据，为用户生成一个称号和一段话：
+// 生成打卡时间建议（使用AI）
+export const generateClockTimeSuggestion = async (
+  targetHours: number,
+  lunchBreakStart: string = '12:00',
+  lunchBreakEnd: string = '13:30'
+): Promise<ClockTimeSuggestion> => {
+  // 使用完整的目标工时值（保留小数）
+  const targetHoursStr = targetHours.toFixed(2);
+
+  const prompt = `根据以下信息，计算合理的上班和下班打卡时间：
+
+目标工时：${targetHoursStr}小时（不含午休）
+午休时间：${lunchBreakStart} - ${lunchBreakEnd}（午休期间不算工时）
+
+计算规则：
+- 工时 = （下班时间 - 上班时间）- 午休时长
+- 例如：公司标准9:30上班、19:00下班，午休1.5小时（12:00-13:30）
+- 工时 = (19:00 - 9:30) - 1.5h = 8小时
 
 公司规定：
-- 上班时间：8:30 - 9:30（超过9:30算迟到）
-- 下班时间：18:00 - 19:00（早于18:00算早退）
+- 正常上班时间范围：8:30 - 9:30
+- 正常下班时间范围：18:00 - 19:00
 
-${statsText}
-平均工时：${avgHours.toFixed(1)}小时
+严格要求：
+1. 上班时间不能早于7:00
+2. 上班时间不能晚于9:30（否则算迟到）
+3. 下班时间不能早于18:00（否则算早退）
+4. 下班时间不能晚于23:59
+5. 平衡分配提前上班和延后下班的时间
+6. 优先建议提前上班
+7. 只返回工时和对应的上下班时间
 
 请严格按照以下JSON格式返回：
 {
-  "title": "称号（4-8个字）",
-  "message": "一段话（30-50字）"
+  "checkIn": "HH:mm格式的上班时间",
+  "checkOut": "HH:mm格式的下班时间",
+  "workHours": 计算得到的工时数（保留2位小数）
 }
 
+示例：如果目标工时是8.50小时，午休1.5小时：
+需要在公司停留 8.50 + 1.5 = 10小时
+推荐9:30上班，19:00下班 = 10小时 - 1.5小时午休 = 8.50小时工时
+
+请直接返回JSON，不要有任何其他文字。`;
+
+  const requestBody = {
+    model: 'deepseek-ai/DeepSeek-V3.2',
+    messages: [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    max_tokens: 200,
+    temperature: 0.3,
+    enable_thinking: false
+  };
+
+  const apiKey = getApiKey();
+
+  // 如果没有API Key，使用本地计算
+  if (!apiKey) {
+    return generateClockTimeSuggestionLocal(targetHours, lunchBreakStart, lunchBreakEnd);
+  }
+
+  try {
+    const response = await axios.post<SiliconFlowResponse>(SILICONFLOW_API_URL, requestBody, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+
+    let content = response.data.choices[0]?.message?.content || '';
+
+    // 清理markdown代码块
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+    try {
+      const parsed = JSON.parse(content);
+      return {
+        checkIn: parsed.checkIn || '09:30',
+        checkOut: parsed.checkOut || '19:00',
+        workHours: parseFloat(parsed.workHours) || targetHours
+      };
+    } catch (e) {
+      // 解析失败，使用本地计算
+      return generateClockTimeSuggestionLocal(targetHours, lunchBreakStart, lunchBreakEnd);
+    }
+  } catch (error) {
+    console.error('生成打卡时间建议失败，使用本地计算:', error);
+    return generateClockTimeSuggestionLocal(targetHours, lunchBreakStart, lunchBreakEnd);
+  }
+};
+
+// 批量生成5天的打卡时间建议（单次API调用）
+export const generateClockTimeSuggestionsFor5Days = async (
+  targetHours: number,
+  lunchBreakStart: string = '12:00',
+  lunchBreakEnd: string = '13:30'
+): Promise<ClockTimeSuggestion[]> => {
+  // 使用完整的目标工时值（保留小数）
+  const targetHoursStr = targetHours.toFixed(2);
+
+  const prompt = `根据以下信息，计算未来5天合理的上班和下班打卡时间（每天都一样）：
+
+目标工时：${targetHoursStr}小时/天（不含午休）
+午休时间：${lunchBreakStart} - ${lunchBreakEnd}（午休期间不算工时）
+
+计算规则：
+- 工时 = （下班时间 - 上班时间）- 午休时长
+- 例如：公司标准9:30上班、19:00下班，午休1.5小时（12:00-13:30）
+- 工时 = (19:00 - 9:30) - 1.5h = 8小时
+
+公司规定：
+- 正常上班时间范围：8:30 - 9:30
+- 正常下班时间范围：18:00 - 19:00
+
+严格要求：
+1. 上班时间不能早于7:00
+2. 上班时间不能晚于9:30（否则算迟到）
+3. 下班时间不能早于18:00（否则算早退）
+4. 下班时间不能晚于23:59
+5. 平衡分配提前上班和延后下班的时间
+6. 优先建议提前上班
+7. 未来5天每天都用相同的打卡时间
+
+请严格按照以下JSON格式返回（返回5个相同的建议）：
+{
+  "suggestions": [
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8.50},
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8},
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8},
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8},
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8}
+  ]
+}
+
+请直接返回JSON，不要有任何其他文字。`;
+
+  const requestBody = {
+    model: 'deepseek-ai/DeepSeek-V3.2',
+    messages: [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    max_tokens: 300,
+    temperature: 0.3,
+    enable_thinking: false
+  };
+
+  const apiKey = getApiKey();
+
+  // 如果没有API Key，使用本地计算
+  if (!apiKey) {
+    const localSuggestion = generateClockTimeSuggestionLocal(targetHours, lunchBreakStart, lunchBreakEnd);
+    return Array(5).fill(localSuggestion);
+  }
+
+  try {
+    const response = await axios.post<SiliconFlowResponse>(SILICONFLOW_API_URL, requestBody, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+
+    let content = response.data.choices[0]?.message?.content || '';
+
+    // 清理markdown代码块
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.suggestions && Array.isArray(parsed.suggestions)) {
+        return parsed.suggestions.map((s: any) => ({
+          checkIn: s.checkIn || '09:30',
+          checkOut: s.checkOut || '19:00',
+          workHours: parseFloat(s.workHours) || targetHours
+        }));
+      }
+      throw new Error('Invalid format');
+    } catch (e) {
+      // 解析失败，使用本地计算
+      const localSuggestion = generateClockTimeSuggestionLocal(targetHours, lunchBreakStart, lunchBreakEnd);
+      return Array(5).fill(localSuggestion);
+    }
+  } catch (error) {
+    console.error('批量生成打卡时间建议失败，使用本地计算:', error);
+    const localSuggestion = generateClockTimeSuggestionLocal(targetHours, lunchBreakStart, lunchBreakEnd);
+    return Array(5).fill(localSuggestion);
+  }
+};
+
+// 本地计算打卡时间建议（备选方案）
+const generateClockTimeSuggestionLocal = (
+  targetHours: number,
+  lunchBreakStart: string,
+  lunchBreakEnd: string
+): ClockTimeSuggestion => {
+  const [breakStartH, breakStartM] = lunchBreakStart.split(':').map(Number);
+  const [breakEndH, breakEndM] = lunchBreakEnd.split(':').map(Number);
+  const breakStartMinutes = breakStartH * 60 + breakStartM;
+  const breakEndMinutes = breakEndH * 60 + breakEndM;
+
+  // 公司标准时间约束
+  const latestCheckInMinutes = 9 * 60 + 30;    // 9:30 = 570（最晚上班时间）
+  const earliestCheckOutMinutes = 18 * 60;     // 18:00 = 1080（最早下班时间）
+  const latestCheckOutMinutes = 23 * 60 + 59;  // 23:59 = 1439
+  const earliestCheckInMinutes = 7 * 60;       // 7:00 = 420
+
+  // 如果目标工时大于等于8小时，使用公司标准时间
+  if (targetHours >= 8) {
+    return {
+      checkIn: '09:30',
+      checkOut: '19:00',
+      workHours: 8
+    };
+  }
+
+  // 需要计算需要的额外停留时间
+  const diffMinutes = (8 - targetHours) * 60;
+
+  // 平衡分配：60%提前上班，40%延后下班
+  const advanceMinutes = Math.round(diffMinutes * 0.6);
+  const delayMinutes = diffMinutes - advanceMinutes;
+
+  // 计算上班时间（不能晚于9:30）
+  let checkInMinutes = latestCheckInMinutes - advanceMinutes;
+  checkInMinutes = Math.max(checkInMinutes, earliestCheckInMinutes);
+
+  // 计算下班时间（不能早于18:00）
+  let checkOutMinutes = earliestCheckOutMinutes + delayMinutes;
+  checkOutMinutes = Math.min(checkOutMinutes, latestCheckOutMinutes);
+
+  // 计算实际工时（考虑午休）
+  let workMinutes: number;
+  if (checkInMinutes >= breakEndMinutes) {
+    workMinutes = (checkOutMinutes - checkInMinutes);
+  } else if (checkInMinutes >= breakStartMinutes) {
+    workMinutes = (checkOutMinutes - breakEndMinutes);
+  } else {
+    workMinutes = (breakStartMinutes - checkInMinutes) + (checkOutMinutes - breakEndMinutes);
+  }
+
+  const hours = Math.floor(workMinutes / 60);
+  const mins = workMinutes % 60;
+
+  return {
+    checkIn: `${Math.floor(checkInMinutes / 60).toString().padStart(2, '0')}:${(checkInMinutes % 60).toString().padStart(2, '0')}`,
+    checkOut: `${Math.floor(checkOutMinutes / 60).toString().padStart(2, '0')}:${(checkOutMinutes % 60).toString().padStart(2, '0')}`,
+    workHours: Math.round((hours + mins / 60) * 100) / 100
+  };
+};
+
+// 生成搞笑称号和鼓励/赞美语
+
+export const generateFunnyTitle = async (
+
+  records: WorkTimeRecord[],
+
+  standardWorkHours: number = 9.5
+
+): Promise<TitleResult> => {
+
+  const statsText = generateStatsText(records);
+
+  
+
+  // 计算平均工时
+
+  const totalDays = records.length;
+
+  const totalHours = records.reduce((sum, r) => sum + r.workHours, 0);
+
+  const avgHours = totalDays > 0 ? totalHours / totalDays : 0;
+
+  const isHighPerformance = avgHours >= standardWorkHours;
+
+
+
+  const prompt = `根据以下出勤数据，为用户生成一个称号和一段话：
+
+
+
+公司规定：
+
+- 上班时间：8:30 - 9:30（超过9:30算迟到）
+
+- 下班时间：18:00 - 19:00（早于18:00算早退）
+
+
+
+${statsText}
+
+平均工时：${avgHours.toFixed(1)}小时
+
+标准工时：${standardWorkHours}小时
+
+
+
+请严格按照以下JSON格式返回：
+
+{
+
+  "title": "称号（4-8个字）",
+
+  "message": "一段话（30-50字）"
+
+}
+
+
+
 要求：
-1. 如果平均工时达到9.5以上（表现优秀）：
+
+1. 如果平均工时达到${standardWorkHours}小时以上（表现优秀）：
+
    - 称号要搞笑且帅气
+
    - 消息要夸用户是超级棒的牛马，语气要赞美、夸张、可爱，适当添加表情包
 
-2. 如果平均工时没有达到9.5（需要加油）：
+
+
+2. 如果平均工时没有达到${standardWorkHours}小时（需要加油）：
 
    - 称号要搞笑且拉垮
 

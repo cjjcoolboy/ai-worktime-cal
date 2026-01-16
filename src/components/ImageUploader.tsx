@@ -12,7 +12,7 @@ interface ImageUploaderProps {
 type InputMode = 'text' | 'image';
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({
-  apiKey,
+  apiKey: _apiKey,
   loading,
   setLoading,
   onRecognized

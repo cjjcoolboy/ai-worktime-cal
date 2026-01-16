@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 
 interface WorkTimeFormProps {
-  lunchBreak: number;
-  onUpdateLunchBreak: (duration: number) => void;
+  lunchBreakStart: string;
+  lunchBreakEnd: string;
+  standardWorkHours: number;
+  onUpdateLunchBreak: (start: string, end: string) => void;
+  onUpdateStandardWorkHours: (hours: number) => void;
   onClearAll: () => void;
   totalDays: number;
   totalHours: number;
 }
 
 const WorkTimeForm: React.FC<WorkTimeFormProps> = ({
-  lunchBreak,
+  lunchBreakStart,
+  lunchBreakEnd,
+  standardWorkHours,
   onUpdateLunchBreak,
+  onUpdateStandardWorkHours,
   onClearAll,
   totalDays,
   totalHours
@@ -19,6 +25,16 @@ const WorkTimeForm: React.FC<WorkTimeFormProps> = ({
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [showManualForm, setShowManualForm] = useState(false);
+
+  // 计算午休时长（小时）
+  const calculateLunchBreakHours = (start: string, end: string): number => {
+    if (!start || !end) return 0;
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    return Math.round((endH * 60 + endM - startH * 60 - startM) / 60 * 100) / 100;
+  };
+
+  const lunchBreakHours = calculateLunchBreakHours(lunchBreakStart, lunchBreakEnd);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,21 +66,45 @@ const WorkTimeForm: React.FC<WorkTimeFormProps> = ({
         )}
       </div>
       <div className="card-body">
-        {/* 午休时长设置 */}
+        {/* 午休时间设置 */}
         <div className="mb-3">
-          <label className="form-label">默认午休时长（小时）</label>
+          <label className="form-label">默认午休时间</label>
+          <div className="input-group">
+            <input
+              type="time"
+              className="form-control"
+              value={lunchBreakStart}
+              onChange={(e) => onUpdateLunchBreak(e.target.value, lunchBreakEnd)}
+            />
+            <span className="input-group-text">~</span>
+            <input
+              type="time"
+              className="form-control"
+              value={lunchBreakEnd}
+              onChange={(e) => onUpdateLunchBreak(lunchBreakStart, e.target.value)}
+            />
+          </div>
+          <small className="text-muted">
+            时长: {lunchBreakHours > 0 ? `${lunchBreakHours}小时` : '请选择时间'}
+          </small>
+        </div>
+
+        {/* 标准出勤工时设置 */}
+        <div className="mb-3">
+          <label className="form-label">每日标准出勤工时（小时）</label>
           <div className="input-group">
             <input
               type="number"
               className="form-control"
-              value={lunchBreak}
-              onChange={(e) => onUpdateLunchBreak(parseFloat(e.target.value) || 1.5)}
+              value={standardWorkHours}
+              onChange={(e) => onUpdateStandardWorkHours(parseFloat(e.target.value) || 9.5)}
               step="0.5"
               min="0"
-              max="4"
+              max="24"
             />
             <span className="input-group-text">小时</span>
           </div>
+          <small className="text-muted">用于图表标准线展示</small>
         </div>
 
         {/* 公司规定上下班时间 */}

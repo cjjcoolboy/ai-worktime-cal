@@ -5,6 +5,7 @@ import ImageUploader from "./components/ImageUploader";
 import WorkTimeList from "./components/WorkTimeList";
 import ChartPanel from "./components/ChartPanel";
 import TitleCard from "./components/TitleCard";
+// FuturePlan 已移到 ChartPanel 中
 import { useWorkTime } from "./hooks/useWorkTime";
 import { RecognizedTime } from "./types";
 
@@ -12,6 +13,8 @@ function App() {
   const {
     records,
     config,
+    futurePlan,
+    strategy,
     loading,
     setLoading,
     addRecord,
@@ -20,6 +23,9 @@ function App() {
     updateRecord,
     clearRecords,
     updateConfig,
+    updateAllRecordsLunchBreak,
+    updateFuturePlan,
+    updateStrategy,
     statistics,
   } = useWorkTime();
 
@@ -52,6 +58,15 @@ function App() {
     setShowApiKeyModal(false);
   };
 
+  // 更新午休时间并重新计算所有记录的工时
+  const handleUpdateLunchBreak = (
+    lunchBreakStart: string,
+    lunchBreakEnd: string,
+  ) => {
+    updateConfig({ lunchBreakStart, lunchBreakEnd });
+    updateAllRecordsLunchBreak(lunchBreakStart, lunchBreakEnd);
+  };
+
   return (
     <div className="app">
       <Header
@@ -64,9 +79,12 @@ function App() {
           {/* 左侧：配置和上传 */}
           <div className="col-lg-4 mb-4">
             <WorkTimeForm
-              lunchBreak={config.lunchBreakDuration}
-              onUpdateLunchBreak={(duration) =>
-                updateConfig({ lunchBreakDuration: duration })
+              lunchBreakStart={config.lunchBreakStart}
+              lunchBreakEnd={config.lunchBreakEnd}
+              standardWorkHours={config.standardWorkHours}
+              onUpdateLunchBreak={handleUpdateLunchBreak}
+              onUpdateStandardWorkHours={(hours) =>
+                updateConfig({ standardWorkHours: hours })
               }
               onClearAll={clearRecords}
               totalDays={statistics.totalDays}
@@ -85,9 +103,35 @@ function App() {
           <div className="col-lg-8">
             {records.length > 0 && (
               <>
-                <TitleCard records={records} />
-                <ChartPanel records={records} />
+                <TitleCard
+                  records={records}
+                  standardWorkHours={config.standardWorkHours}
+                />
               </>
+            )}
+
+            {/* 未来5天出勤计划 - 有工时记录后才显示 */}
+            {/*
+            {records.length > 0 && (
+              <FuturePlan
+                records={records.map(r => ({ date: r.date, workHours: r.workHours }))}
+                standardWorkHours={config.standardWorkHours}
+                futurePlan={futurePlan}
+                onUpdateFuturePlan={updateFuturePlan}
+              />
+            )}
+            */}
+
+            {/* 工时分析图表 - 有工时记录后才显示 */}
+            {records.length > 0 && (
+              <ChartPanel
+                records={records}
+                standardWorkHours={config.standardWorkHours}
+                futurePlan={futurePlan}
+                strategy={strategy}
+                onUpdateFuturePlan={updateFuturePlan}
+                onUpdateStrategy={updateStrategy}
+              />
             )}
 
             <WorkTimeList

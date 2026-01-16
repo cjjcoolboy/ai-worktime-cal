@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { WorkTimeRecord } from '../types';
+import { calculateWorkHoursWithTimeRange } from '../services/api';
 
 interface WorkTimeListProps {
   records: WorkTimeRecord[];
@@ -20,7 +21,8 @@ const WorkTimeList: React.FC<WorkTimeListProps> = ({
     setEditForm({
       checkIn: record.checkIn,
       checkOut: record.checkOut,
-      lunchBreak: record.lunchBreak
+      lunchBreakStart: record.lunchBreakStart,
+      lunchBreakEnd: record.lunchBreakEnd
     });
   };
 
@@ -51,6 +53,19 @@ const WorkTimeList: React.FC<WorkTimeListProps> = ({
       </div>
     );
   }
+
+  // 计算预览工时
+  const calculatePreviewHours = () => {
+    const checkIn = editForm.checkIn;
+    const checkOut = editForm.checkOut;
+    const lunchBreakStart = editForm.lunchBreakStart;
+    const lunchBreakEnd = editForm.lunchBreakEnd;
+    
+    if (checkIn && checkOut && lunchBreakStart && lunchBreakEnd) {
+      return calculateWorkHoursWithTimeRange(checkIn, checkOut, lunchBreakStart, lunchBreakEnd);
+    }
+    return 0;
+  };
 
   return (
     <div className="card mb-4">
@@ -94,25 +109,26 @@ const WorkTimeList: React.FC<WorkTimeListProps> = ({
                         />
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          className="form-control form-control-sm"
-                          value={editForm.lunchBreak || ''}
-                          onChange={(e) => setEditForm({ ...editForm, lunchBreak: parseFloat(e.target.value) })}
-                          step="0.5"
-                          min="0"
-                        />
+                        <div className="d-flex align-items-center gap-1">
+                          <input
+                            type="time"
+                            className="form-control form-control-sm"
+                            style={{ width: '85px' }}
+                            value={editForm.lunchBreakStart || ''}
+                            onChange={(e) => setEditForm({ ...editForm, lunchBreakStart: e.target.value })}
+                          />
+                          <span>~</span>
+                          <input
+                            type="time"
+                            className="form-control form-control-sm"
+                            style={{ width: '85px' }}
+                            value={editForm.lunchBreakEnd || ''}
+                            onChange={(e) => setEditForm({ ...editForm, lunchBreakEnd: e.target.value })}
+                          />
+                        </div>
                       </td>
                       <td className="align-middle">
-                        {editForm.checkIn && editForm.checkOut && editForm.lunchBreak !== undefined
-                          ? (() => {
-                              const [inH, inM] = (editForm.checkIn || '').split(':').map(Number);
-                              const [outH, outM] = (editForm.checkOut || '').split(':').map(Number);
-                              const mins = (outH * 60 + outM) - (inH * 60 + inM) - (editForm.lunchBreak || 0) * 60;
-                              return (mins / 60).toFixed(2);
-                            })()
-                          : record.workHours.toFixed(2)}
-                        h
+                        {calculatePreviewHours().toFixed(2)}h
                       </td>
                       <td>
                         <div className="btn-group btn-group-sm">
@@ -136,7 +152,7 @@ const WorkTimeList: React.FC<WorkTimeListProps> = ({
                       <td>{record.date}</td>
                       <td>{record.checkIn}</td>
                       <td>{record.checkOut}</td>
-                      <td>{record.lunchBreak}h</td>
+                      <td>{record.lunchBreakStart}~{record.lunchBreakEnd}</td>
                       <td>
                         <span className={`badge ${record.workHours >= 8 ? 'bg-success' : record.workHours >= 6 ? 'bg-warning' : 'bg-danger'}`}>
                           {record.workHours.toFixed(2)}h

@@ -4,9 +4,10 @@ import { generateFunnyTitle, generateTitleImage, TitleResult } from '../services
 
 interface TitleCardProps {
   records: WorkTimeRecord[];
+  standardWorkHours?: number;
 }
 
-const TitleCard: React.FC<TitleCardProps> = ({ records }) => {
+const TitleCard: React.FC<TitleCardProps> = ({ records, standardWorkHours = 9.5 }) => {
   const [titleResult, setTitleResult] = useState<TitleResult | null>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,7 +21,7 @@ const TitleCard: React.FC<TitleCardProps> = ({ records }) => {
       setError('');
       try {
         // 生成搞笑称号和鼓励/赞美语
-        const result = await generateFunnyTitle(records);
+        const result = await generateFunnyTitle(records, standardWorkHours);
         setTitleResult(result);
 
         // 生成图片
@@ -35,7 +36,7 @@ const TitleCard: React.FC<TitleCardProps> = ({ records }) => {
     };
 
     generateTitle();
-  }, [records]);
+  }, [records, standardWorkHours]);
 
   if (records.length === 0) return null;
 
