@@ -151,17 +151,34 @@ export const getStrategyCoefficient = (strategy: PlanStrategy): number => {
 };
 
 /**
+ * 检查日期是否为周五
+ */
+export const isFriday = (dateStr: string): boolean => {
+  const date = new Date(dateStr);
+  return date.getDay() === 5;
+};
+
+/**
+ * 获取未来日期中的周五日期列表
+ */
+export const getFutureFridays = (futureDates: string[]): string[] => {
+  return futureDates.filter(date => isFriday(date));
+};
+
+/**
  * 计算未来N天需要达到的每日工时
  * @param currentRecords 当前出勤记录
  * @param standardWorkHours 标准工时（目标平均值）
  * @param futureDays 未来天数（默认5天）
  * @param strategy 策略模式（relaxed/normal/hardcore）
+ * @param futureDates 未来日期列表（用于检测周五）
  */
 export const calculateFutureTarget = (
   currentRecords: WorkTimeRecord[],
   standardWorkHours: number,
   futureDays: number = 5,
-  strategy: PlanStrategy = 'normal'
+  strategy: PlanStrategy = 'normal',
+  futureDates?: string[]
 ): PredictionResult => {
   const totalDays = currentRecords.length;
 
@@ -175,17 +192,39 @@ export const calculateFutureTarget = (
   const coefficient = getStrategyCoefficient(strategy);
   const targetAvg = standardWorkHours * coefficient;
 
+  // 检查是否有周五
+  const fridays = futureDates ? getFutureFridays(futureDates) : [];
+  const fridayCount = fridays.length;
+  const normalDayCount = futureDays - fridayCount;
+
   // 目标总工时 = 目标平均工时 * (当前天数 + 未来天数)
   const targetTotalHours = targetAvg * (totalDays + futureDays);
 
   // 未来N天总共需要的工时
   const totalHoursNeeded = targetTotalHours - currentTotalHours;
 
-  // 每天需要达到的工时
-  const dailyTarget = totalHoursNeeded / futureDays;
+  // 计算每日工时（考虑周五特殊规则）
+  let dailyTarget: number;
+  let fridayTarget: number;
+  let isAchievable: boolean;
 
-  // 是否可达成（每天24小时内）
-  const isAchievable = dailyTarget <= 24;
+  if (fridayCount > 0) {
+    // 有周五：周五8小时，其余天数分摊剩余工时
+    fridayTarget = 8;
+    // 周五总工时
+    const fridayTotalHours = fridayTarget * fridayCount;
+    // 其余天数需要达到的总工时
+    const normalDayTotalHours = totalHoursNeeded - fridayTotalHours;
+    // 其余天数每天的工时
+    dailyTarget = normalDayCount > 0 ? normalDayTotalHours / normalDayCount : 0;
+    // 检查其余天数是否可达成
+    isAchievable = dailyTarget <= 24;
+  } else {
+    // 没有周五，正常计算
+    dailyTarget = totalHoursNeeded / futureDays;
+    fridayTarget = dailyTarget;
+    isAchievable = dailyTarget <= 24;
+  }
 
   return {
     currentAvg: Math.round(currentAvg * 100) / 100,
@@ -193,6 +232,8 @@ export const calculateFutureTarget = (
     daysRemaining: futureDays,
     totalHoursNeeded: Math.round(totalHoursNeeded * 100) / 100,
     dailyTarget: Math.round(dailyTarget * 100) / 100,
+    fridayTarget: Math.round(fridayTarget * 100) / 100,
+    fridayCount,
     isAchievable
   };
 };
@@ -245,7 +286,7 @@ export const createDefaultFuturePlan = (
 /**
  * 根据预测结果生成建议文本
  */
-export const generateSuggestion = (result: PredictionResult, workDaysCount: number = 5, strategyName: string = '正常模式'): string => {
+export const generateSuggestion = (result: PredictionResult, workDaysCount: number = 5, strategyName: string = '正常模式', futureDates?: string[]): string => {
   if (result.daysRemaining === 0) {
     return '没有剩余天数，无法进行预测';
   }
@@ -254,8 +295,16 @@ export const generateSuggestion = (result: PredictionResult, workDaysCount: numb
     return `太棒了！您当前平均工时 ${result.currentAvg}h 已达标，继续保持！`;
   }
 
+  // 检查是否有周五
+  const fridays = futureDates ? getFutureFridays(futureDates) : [];
+  const hasFriday = fridays.length > 0;
+
   if (!result.isAchievable) {
-    return `目标挑战较大！未来${workDaysCount}个工作日每天需要达到 ${result.dailyTarget}h，建议适当调整`;
+    return `目标挑战较大！普通日每天需${result.dailyTarget}h，建议适当调整`;
+  }
+
+  if (hasFriday) {
+    return `${strategyName}：周五8h，其余${workDaysCount - 1}天需${result.dailyTarget}h/天，整体平均达${result.targetAvg}h`;
   }
 
   return `${strategyName}：未来${workDaysCount}个工作日每天需要达到约 ${result.dailyTarget}h 才能让整体平均达到 ${result.targetAvg}h 目标`;

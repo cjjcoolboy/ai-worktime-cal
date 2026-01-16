@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FuturePlanDay, PredictionResult, STRATEGIES, PlanStrategy } from '../types';
-import { calculateFutureTarget, getFutureDates, generateSuggestion } from '../services/prediction';
+import { calculateFutureTarget, getFutureDates, generateSuggestion, isFriday } from '../services/prediction';
 import { generateClockTimeSuggestionsFor5Days, getApiKey } from '../services/api';
 
 interface FuturePlanProps {
@@ -65,7 +65,10 @@ const FuturePlan: React.FC<FuturePlanProps> = ({
     }
   };
 
-  // 计算预测结果
+  // 获取未来工作日日期
+  const futureDates = getFutureDates(5);
+
+  // 计算预测结果（传入futureDates以检测周五）
   const prediction: PredictionResult = calculateFutureTarget(
     records.map(r => ({
       ...r,
@@ -77,11 +80,9 @@ const FuturePlan: React.FC<FuturePlanProps> = ({
     })),
     standardWorkHours,
     5,
-    strategy
+    strategy,
+    futureDates
   );
-
-  // 获取未来工作日日期
-  const futureDates = getFutureDates(5);
 
   // 计算实际工作日数量
   const workDaysCount = futureDates.length;
@@ -90,7 +91,7 @@ const FuturePlan: React.FC<FuturePlanProps> = ({
   const currentStrategy = STRATEGIES.find(s => s.id === strategy);
   const strategyName = currentStrategy?.name || '正常模式';
 
-  const suggestion = generateSuggestion(prediction, workDaysCount, strategyName);
+  const suggestion = generateSuggestion(prediction, workDaysCount, strategyName, futureDates);
 
   // 本地计算打卡时间（备选方案）
   const calculateClockTimeLocal = (targetHours: number): { checkIn: string; checkOut: string } => {
@@ -121,7 +122,7 @@ const FuturePlan: React.FC<FuturePlanProps> = ({
   };
 
   // 创建默认计划
-  const createDefaultPlan = useCallback(async (targetHours: number, strategyId: PlanStrategy) => {
+  const createDefaultPlan = useCallback(async (targetHours: number, fridayTarget: number, strategyId: PlanStrategy) => {
     const cached = strategyCache.current.get(strategyId);
 
     let clockSuggestions: { checkIn: string; checkOut: string }[] = [];
@@ -141,8 +142,29 @@ const FuturePlan: React.FC<FuturePlanProps> = ({
           modelTargetHours = 8;
         }
 
-        const modelResults = await generateClockTimeSuggestionsFor5Days(modelTargetHours);
-        clockSuggestions = modelResults;
+        // 检查是否有周五
+        const hasFriday = futureDates.some(date => isFriday(date));
+
+        const modelResults = await generateClockTimeSuggestionsFor5Days(
+          modelTargetHours,
+          '12:00',
+          '13:30',
+          hasFriday ? fridayTarget : undefined  // 传入周五目标工时
+        );
+
+        if (hasFriday && modelResults.length === 5) {
+          // 周五使用特殊的打卡时间（8小时）
+          const fridaySuggestion = calculateClockTimeLocal(fridayTarget);
+          // 保持模型返回的其他4天建议，只替换周五
+          clockSuggestions = futureDates.map((date, index) => {
+            if (isFriday(date)) {
+              return fridaySuggestion;
+            }
+            return modelResults[index] || { checkIn: '09:30', checkOut: '19:00' };
+          });
+        } else {
+          clockSuggestions = modelResults;
+        }
 
         // 保存到缓存
         strategyCache.current.set(strategyId, {
@@ -154,18 +176,22 @@ const FuturePlan: React.FC<FuturePlanProps> = ({
         setLoading(false);
       } else {
         // 无API Key，使用本地计算
-        const local = calculateClockTimeLocal(targetHours);
-        clockSuggestions = Array(5).fill(local);
+        const normalLocal = calculateClockTimeLocal(targetHours);
+        const fridayLocal = calculateClockTimeLocal(fridayTarget);
+        clockSuggestions = futureDates.map(date => isFriday(date) ? fridayLocal : normalLocal);
       }
     }
 
-    const newPlan = futureDates.map((date, index) => ({
-      date,
-      plannedHours: targetHours,
-      note: '推荐目标',
-      suggestedCheckIn: clockSuggestions[index]?.checkIn || '09:30',
-      suggestedCheckOut: clockSuggestions[index]?.checkOut || '19:00'
-    }));
+    const newPlan = futureDates.map((date, index) => {
+      const isFri = isFriday(date);
+      return {
+        date,
+        plannedHours: isFri ? fridayTarget : targetHours,
+        note: isFri ? '周五8小时' : '推荐目标',
+        suggestedCheckIn: clockSuggestions[index]?.checkIn || '09:30',
+        suggestedCheckOut: clockSuggestions[index]?.checkOut || '19:00'
+      };
+    });
 
     onUpdateFuturePlan(newPlan);
   }, [futureDates, onUpdateFuturePlan]);
@@ -175,20 +201,24 @@ const FuturePlan: React.FC<FuturePlanProps> = ({
     // 首次挂载时不执行，等待数据加载完成
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      // 首次加载当前策略
-      createDefaultPlan(prediction.dailyTarget, strategy);
+      // 首次加载当前策略（传入周五目标）
+      createDefaultPlan(prediction.dailyTarget, prediction.fridayTarget || prediction.dailyTarget, strategy);
       return;
     }
 
     const needsRecreate =
       futurePlan.length === 0 ||
       futurePlan.length !== workDaysCount ||
-      futurePlan.some((p, idx) => idx < workDaysCount && p.plannedHours !== prediction.dailyTarget);
+      futurePlan.some((p, idx) => {
+        if (idx >= workDaysCount) return false;
+        const targetForDay = isFriday(p.date) ? (prediction.fridayTarget || prediction.dailyTarget) : prediction.dailyTarget;
+        return Math.abs(p.plannedHours - targetForDay) > 0.01;
+      });
 
     if (needsRecreate) {
-      createDefaultPlan(prediction.dailyTarget, strategy);
+      createDefaultPlan(prediction.dailyTarget, prediction.fridayTarget || prediction.dailyTarget, strategy);
     }
-  }, [workDaysCount, prediction.dailyTarget, strategy]);
+  }, [workDaysCount, prediction.dailyTarget, prediction.fridayTarget, strategy, futurePlan]);
 
   // 更新单日计划（使用本地计算）
   const updateDayPlan = useCallback((index: number, hours: number) => {

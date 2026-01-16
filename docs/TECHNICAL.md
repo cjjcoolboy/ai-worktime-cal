@@ -222,15 +222,34 @@ function calculateFutureTarget(
   records: WorkTimeRecord[],
   standardWorkHours: number,
   futureDays: number = 5,
-  strategy: PlanStrategy = 'normal'
+  strategy: PlanStrategy = 'normal',
+  futureDates?: string[]  // 可选：用于检测周五
 ): PredictionResult {
   const coefficient = getStrategyCoefficient(strategy);
   const targetAvg = standardWorkHours * coefficient;
   const currentAvg = ...;
 
+  // 检测周五
+  const fridays = futureDates?.filter(d => new Date(d).getDay() === 5) || [];
+  const fridayCount = fridays.length;
+  const normalDayCount = futureDays - fridayCount;
+
   // 计算未来N天需要达到的每日工时
   const totalHoursNeeded = (targetAvg * futureDays) - (currentAvg * futureDays);
-  const dailyTarget = totalHoursNeeded / futureDays;
+
+  // 周五特殊规则：周五8小时，其余天数分摊
+  let dailyTarget: number;
+  let fridayTarget = 8;
+  if (fridayCount > 0) {
+    // 周五总工时 = 8h * 周五数量
+    const fridayTotalHours = 8 * fridayCount;
+    // 其余天数需要达到的总工时
+    const normalDayTotalHours = totalHoursNeeded - fridayTotalHours;
+    // 其余天数每天的工时
+    dailyTarget = normalDayTotalHours / normalDayCount;
+  } else {
+    dailyTarget = totalHoursNeeded / futureDays;
+  }
   const isAchievable = dailyTarget <= 24;
 
   return {
@@ -239,10 +258,18 @@ function calculateFutureTarget(
     daysRemaining: futureDays,
     totalHoursNeeded,
     dailyTarget,
+    fridayTarget,
+    fridayCount,
     isAchievable
   };
 }
 ```
+
+**周五特殊规则：**
+- 如果未来5天内有周五，周五当天只需出勤8小时
+- 周五的打卡时间为 09:30 - 18:00（标准工时）
+- 缺的时长（8小时与原目标之差）分摊到其余工作日
+- 确保整体平均工时仍能达到目标
 
 **策略系数映射：**
 
@@ -488,7 +515,7 @@ VITE_SILICONFLOW_API_KEY=your_api_key_here
 |------|------|------|------|
 | 图片识别 | zai-org/GLM-4.6V | /v1/chat/completions | temperature=0.1 |
 | 文本识别 | deepseek-ai/DeepSeek-V3.2 | /v1/chat/completions | temperature=0.1, enable_thinking=false（加速模式） |
-| 打卡时间建议 | deepseek-ai/DeepSeek-V3.2 | /v1/chat/completions | temperature=0.3, enable_thinking=false（单次API调用返回5天数据） |
+| 打卡时间建议 | deepseek-ai/DeepSeek-V3.2 | /v1/chat/completions | temperature=0.3, enable_thinking=false（单次API调用返回5天数据，含周五特殊处理） |
 | 称号生成 | deepseek-ai/DeepSeek-V2.5 | /v1/chat/completions | temperature=0.8，JSON格式返回title+message |
 | 图片生成 | Kwai-Kolors/Kolors | /v1/images/generations | width=1024, height=1024 |
 

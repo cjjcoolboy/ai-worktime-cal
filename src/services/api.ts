@@ -443,14 +443,21 @@ export const generateClockTimeSuggestion = async (
 export const generateClockTimeSuggestionsFor5Days = async (
   targetHours: number,
   lunchBreakStart: string = '12:00',
-  lunchBreakEnd: string = '13:30'
+  lunchBreakEnd: string = '13:30',
+  fridayTargetHours?: number  // 周五特殊目标工时（可选）
 ): Promise<ClockTimeSuggestion[]> => {
   // 使用完整的目标工时值（保留小数）
   const targetHoursStr = targetHours.toFixed(2);
+  const fridayHoursStr = (fridayTargetHours || 8).toFixed(2);
 
-  const prompt = `根据以下信息，计算未来5天合理的上班和下班打卡时间（每天都一样）：
+  // 如果传入了周五目标，需要在提示词中说明
+  const fridayRule = fridayTargetHours !== undefined
+    ? `\n特殊规则：如果未来5天内有周五（weekend前的工作日），周五当天的目标工时为${fridayHoursStr}小时，其余4天每天需要达到${targetHoursStr}小时。`
+    : '';
 
-目标工时：${targetHoursStr}小时/天（不含午休）
+  const prompt = `根据以下信息，计算未来5天合理的上班和下班打卡时间：
+
+目标工时：${targetHoursStr}小时/天（不含午休）${fridayRule}
 午休时间：${lunchBreakStart} - ${lunchBreakEnd}（午休期间不算工时）
 
 计算规则：
@@ -469,15 +476,16 @@ export const generateClockTimeSuggestionsFor5Days = async (
 4. 下班时间不能晚于23:59
 5. 平衡分配提前上班和延后下班的时间
 6. 优先建议提前上班
-7. 未来5天每天都用相同的打卡时间
+7. 如果有周五，周五使用8小时工时的打卡时间（09:30-18:00）
+8. 非周五的4天使用相同的目标工时
 
-请严格按照以下JSON格式返回（返回5个相同的建议）：
+请严格按照以下JSON格式返回（返回5个建议，索引0-3是普通工作日，索引4可能是周五）：
 {
   "suggestions": [
     {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8.50},
-    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8},
-    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8},
-    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8},
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8.50},
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8.50},
+    {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8.50},
     {"checkIn": "HH:mm", "checkOut": "HH:mm", "workHours": 8}
   ]
 }

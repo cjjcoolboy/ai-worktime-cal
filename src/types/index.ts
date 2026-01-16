@@ -24,7 +24,9 @@ export interface PredictionResult {
   targetAvg: number;         // 目标平均工时（标准线）
   daysRemaining: number;     // 剩余天数
   totalHoursNeeded: number;  // 未来N天总共需要工时
-  dailyTarget: number;       // 每天需要达到的工时
+  dailyTarget: number;       // 普通工作日需要达到的工时
+  fridayTarget?: number;     // 周五需要达到的工时（如果有周五）
+  fridayCount?: number;      // 周五数量
   isAchievable: boolean;     // 是否可达成（每天24小时内）
 }
 
